@@ -4,7 +4,7 @@
 
 ## Background
 
-The Claude Code standalone binary (228MB ELF) has two independent prompt cache bugs that cause cache misses, inflating costs by 10-20x. See [analyze.md](analyze.md) for the full analysis.
+The Claude Code standalone binary (228MB ELF) has two independent prompt cache bugs that cause cache misses, inflating costs by 10-20x. See [this](https://www.reddit.com/r/ClaudeAI/comments/1s7mkn3/psa_claude_code_has_two_cache_bugs_that_can/) for the full analysis.
 
 This patch fixes both by **extracting the JS bundle → running it via standard Bun → normalizing API requests at runtime**.
 
