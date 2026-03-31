@@ -2,7 +2,7 @@
 
 ## 背景
 
-Claude Code standalone binary（228MB ELF）存在两个独立的 prompt cache bug，会导致缓存失效、费用膨胀 10-20x。详见 [analyze.md](analyze.md)。
+Claude Code standalone binary（228MB ELF）存在两个独立的 prompt cache bug，会导致缓存失效、费用膨胀 10-20x。详见 [这里](https://www.reddit.com/r/ClaudeAI/comments/1s7mkn3/psa_claude_code_has_two_cache_bugs_that_can/)。
 
 本补丁通过 **提取 JS → 脱离定制 Bun 运行 → 运行时 hook 规范化请求** 的方式修复。
 
