@@ -62,32 +62,43 @@ def extract_js(binary_path):
 
     js_raw = bun_data[cjs_start:]
 
-    # Find where readable JS ends (transition to bytecode)
-    window = 64
-    js_end = len(js_raw)
-    for i in range(0x100000, len(js_raw) - window, 4096):
-        chunk = js_raw[i : i + window]
-        printable = sum(1 for b in chunk if 32 <= b < 127 or b in (10, 13, 9))
-        if printable < window * 0.3:
-            js_end = i
-            break
+    # The CJS wrapper ends with "})\n" followed by null bytes (bytecode/metadata).
+    # Find this boundary generically — no version-specific anchors needed.
+    #
+    # Strategy: search for "})\n\x00" which marks the CJS close followed by
+    # the start of binary data. We search from a reasonable minimum offset
+    # (1MB) to skip any occurrences inside string literals early in the source.
+    min_offset = 0x100000  # 1 MB — JS bundle is always larger than this
+    cjs_close_pattern = b"})\n\x00"
+    close_idx = js_raw.find(cjs_close_pattern, min_offset)
 
-    # The CJS wrapper closes with "})". Find it precisely:
-    # The bundle ends with something like "...IG1();})[\n\x00...]"
-    # Search for the last occurrence of "});" or "})" in the JS source region.
-    cjs_close = b"IG1();}"  # unique anchor near the CJS close
-    close_idx = js_raw.find(cjs_close)
     if close_idx != -1:
-        # "IG1();}" is the function body close, then ")" closes the CJS wrapper
-        # Take up to and including "IG1();"
-        js_end = close_idx + len(b"IG1();")
+        # The "})" is the CJS wrapper close: "}" ends the function body,
+        # ")" closes the outer "(". We want just the function body, so
+        # exclude both the opening prefix and the closing "})".
+        js_end = close_idx
     else:
-        # Fallback: use the heuristic boundary
-        pass
+        # Fallback: scan for transition from printable text to binary data,
+        # using a sliding window with fine granularity.
+        print("  ⚠ CJS close pattern not found, using heuristic boundary")
+        js_end = len(js_raw)
+        window = 64
+        for i in range(min_offset, len(js_raw) - window, 256):
+            chunk = js_raw[i : i + window]
+            printable = sum(1 for b in chunk if 32 <= b < 127 or b in (10, 13, 9))
+            if printable < window * 0.3:
+                # Back-track to find the last "})" before this binary region
+                segment = js_raw[max(0, i - 4096) : i]
+                last_close = segment.rfind(b"})")
+                if last_close != -1:
+                    js_end = max(0, i - 4096) + last_close
+                else:
+                    js_end = i
+                break
 
     js_source = js_raw[:js_end]
 
-    # Strip outer CJS wrapper prefix
+    # Strip outer CJS wrapper prefix — we already excluded the closing "})"
     inner = js_source[len(cjs_marker) :]
     inner = inner.rstrip()
 
